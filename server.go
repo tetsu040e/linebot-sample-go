@@ -2,9 +2,12 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/line/line-bot-sdk-go/linebot"
@@ -16,6 +19,15 @@ var bot *linebot.Client
 var zero int = 0
 var one int = 1
 var five int = 5
+var weekdayja = strings.NewReplacer(
+	"Sun", "日",
+	"Mon", "月",
+	"Tue", "火",
+	"Wed", "水",
+	"Thu", "木",
+	"Fri", "金",
+	"Sat", "土",
+)
 
 func init() {
 	secret = os.Getenv("LINEBOT_CHANNEL_SECRET")
@@ -68,6 +80,8 @@ func dispachEvent(event *linebot.Event) error {
 	switch event.Type {
 	case linebot.EventTypeMessage:
 		err = dispatchMessage(event)
+	case linebot.EventTypePostback:
+		err = handlePostback(event)
 	}
 	return err
 }
@@ -89,6 +103,8 @@ func handleTextMessage(replyToken string, message *linebot.TextMessage, source *
 
 	var err error
 	switch message.Text {
+	case "予約":
+		err = replyReservationForm(replyToken)
 	case "flex":
 		err = replyFlexSample(replyToken)
 	default:
@@ -99,6 +115,54 @@ func handleTextMessage(replyToken string, message *linebot.TextMessage, source *
 
 func replyText(token, text string) error {
 	_, err := bot.ReplyMessage(token, linebot.NewTextMessage(text)).Do()
+	return err
+}
+
+func replyReservationForm(token string) error {
+
+	now := time.Now()
+	bubbles := []*linebot.BubbleContainer{}
+	for i := 1; i < 5; i++ {
+		date := now.AddDate(0, 0, i)
+		buttons := []linebot.FlexComponent{}
+		for k := 9; k < 18; k++ {
+			button := &linebot.ButtonComponent{
+				Height: linebot.FlexButtonHeightTypeSm,
+				Action: &linebot.PostbackAction{
+					Label: fmt.Sprintf("%02d:00〜", k),
+					Data:  fmt.Sprintf("%s %02d:00", weekdayja.Replace(date.Format("2006/01/02 (Mon)")), k),
+				},
+			}
+			buttons = append(buttons, button)
+		}
+		container := &linebot.BubbleContainer{
+			Body: &linebot.BoxComponent{
+				Layout:  linebot.FlexBoxLayoutTypeVertical,
+				Spacing: linebot.FlexComponentSpacingTypeSm,
+				Contents: []linebot.FlexComponent{
+					&linebot.TextComponent{
+						Text:   weekdayja.Replace(date.Format("2006/01/02 (Mon)")),
+						Size:   linebot.FlexTextSizeTypeMd,
+						Weight: linebot.FlexTextWeightTypeBold,
+						Wrap:   true,
+					},
+					&linebot.BoxComponent{
+						Layout:   linebot.FlexBoxLayoutTypeVertical,
+						Contents: buttons,
+					},
+				},
+			},
+		}
+		bubbles = append(bubbles, container)
+	}
+	carousel := &linebot.CarouselContainer{
+		Contents: bubbles,
+	}
+
+	message := linebot.NewTextMessage("予約ですね。以下の日時から選択してください。")
+	flex := linebot.NewFlexMessage("予約選択", carousel)
+	_, err := bot.ReplyMessage(token, message, flex).Do()
+
 	return err
 }
 
@@ -226,5 +290,16 @@ func replyFlexSample(token string) error {
 	}
 	message := linebot.NewFlexMessage("flex", container)
 	_, err := bot.ReplyMessage(token, message).Do()
+	return err
+}
+
+func handlePostback(event *linebot.Event) error {
+	if event.Postback == nil {
+		return nil
+	}
+
+	message := linebot.NewTextMessage(fmt.Sprintf("%s で予約を承りました。", event.Postback.Data))
+	_, err := bot.ReplyMessage(event.ReplyToken, message).Do()
+
 	return err
 }
