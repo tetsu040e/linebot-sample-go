@@ -13,6 +13,9 @@ import (
 var secret string = ""
 var token string = ""
 var bot *linebot.Client
+var zero int = 0
+var one int = 1
+var five int = 5
 
 func init() {
 	secret = os.Getenv("LINEBOT_CHANNEL_SECRET")
@@ -73,14 +76,155 @@ func dispatchMessage(event *linebot.Event) error {
 	var err error
 	switch event.Message.(type) {
 	case *linebot.TextMessage:
-		err = handleTextMessage(event.Message.(*linebot.TextMessage), event.ReplyToken, event.Source)
+		err = handleTextMessage(event.ReplyToken, event.Message.(*linebot.TextMessage), event.Source)
 	}
 	return err
 }
 
-func handleTextMessage(message *linebot.TextMessage, replyToken string, source *linebot.EventSource) error {
-	if _, err := bot.ReplyMessage(replyToken, linebot.NewTextMessage(message.Text)).Do(); err != nil {
-		return err
+func handleTextMessage(replyToken string, message *linebot.TextMessage, source *linebot.EventSource) error {
+	if source.Type != linebot.EventSourceTypeUser {
+		// Room やグループでのメッセージはスルーする
+		return nil
 	}
-	return nil
+
+	var err error
+	switch message.Text {
+	case "flex":
+		err = replyFlexSample(replyToken)
+	default:
+		err = replyText(replyToken, message.Text)
+	}
+	return err
+}
+
+func replyText(token, text string) error {
+	_, err := bot.ReplyMessage(token, linebot.NewTextMessage(text)).Do()
+	return err
+}
+
+func replyFlexSample(token string) error {
+	container := &linebot.BubbleContainer{
+		Hero: &linebot.ImageComponent{
+			Type:        linebot.FlexComponentTypeImage,
+			URL:         "https://scdn.line-apps.com/n/channel_devcenter/img/fx/01_1_cafe.png",
+			Size:        linebot.FlexImageSizeTypeFull,
+			AspectRatio: linebot.FlexImageAspectRatioType20to13,
+			Action: &linebot.URIAction{
+				URI: "http://linecorp.com/",
+			},
+		},
+		Body: &linebot.BoxComponent{
+			Layout: linebot.FlexBoxLayoutTypeVertical,
+			Contents: []linebot.FlexComponent{
+				&linebot.TextComponent{
+					Text:   "Brown Cafe",
+					Size:   linebot.FlexTextSizeTypeXl,
+					Weight: linebot.FlexTextWeightTypeBold,
+				},
+				&linebot.BoxComponent{
+					Layout: linebot.FlexBoxLayoutTypeBaseline,
+					Margin: linebot.FlexComponentMarginTypeMd,
+					Contents: []linebot.FlexComponent{
+						&linebot.IconComponent{
+							URL:  "https://scdn.line-apps.com/n/channel_devcenter/img/fx/review_gold_star_28.png",
+							Size: linebot.FlexIconSizeTypeSm,
+						},
+						&linebot.IconComponent{
+							URL:  "https://scdn.line-apps.com/n/channel_devcenter/img/fx/review_gold_star_28.png",
+							Size: linebot.FlexIconSizeTypeSm,
+						},
+						&linebot.IconComponent{
+							URL:  "https://scdn.line-apps.com/n/channel_devcenter/img/fx/review_gold_star_28.png",
+							Size: linebot.FlexIconSizeTypeSm,
+						},
+						&linebot.IconComponent{
+							URL:  "https://scdn.line-apps.com/n/channel_devcenter/img/fx/review_gold_star_28.png",
+							Size: linebot.FlexIconSizeTypeSm,
+						},
+						&linebot.IconComponent{
+							URL:  "https://scdn.line-apps.com/n/channel_devcenter/img/fx/review_gray_star_28.png",
+							Size: linebot.FlexIconSizeTypeSm,
+						},
+						&linebot.TextComponent{
+							Text:  "4.0",
+							Flex:  &zero,
+							Size:  linebot.FlexTextSizeTypeSm,
+							Color: "#999999",
+						},
+					},
+				},
+				&linebot.BoxComponent{
+					Layout:  linebot.FlexBoxLayoutTypeVertical,
+					Spacing: linebot.FlexComponentSpacingTypeSm,
+					Margin:  linebot.FlexComponentMarginTypeLg,
+					Contents: []linebot.FlexComponent{
+						&linebot.BoxComponent{
+							Layout:  linebot.FlexBoxLayoutTypeBaseline,
+							Spacing: linebot.FlexComponentSpacingTypeSm,
+							Contents: []linebot.FlexComponent{
+								&linebot.TextComponent{
+									Text:  "Place",
+									Flex:  &one,
+									Size:  linebot.FlexTextSizeTypeSm,
+									Color: "#aaaaaa",
+								},
+								&linebot.TextComponent{
+									Text:  "Miraina Tower, 4-1-6 Shinjuku, Tokyo",
+									Flex:  &five,
+									Size:  linebot.FlexTextSizeTypeSm,
+									Color: "#666666",
+									Wrap:  true,
+								},
+							},
+						},
+						&linebot.BoxComponent{
+							Layout:  linebot.FlexBoxLayoutTypeBaseline,
+							Spacing: linebot.FlexComponentSpacingTypeSm,
+							Contents: []linebot.FlexComponent{
+								&linebot.TextComponent{
+									Text:  "Time",
+									Flex:  &one,
+									Size:  linebot.FlexTextSizeTypeSm,
+									Color: "#aaaaaa",
+								},
+								&linebot.TextComponent{
+									Text:  "10:00 - 23:00",
+									Flex:  &five,
+									Size:  linebot.FlexTextSizeTypeSm,
+									Color: "#666666",
+									Wrap:  true,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Footer: &linebot.BoxComponent{
+			Layout:  linebot.FlexBoxLayoutTypeVertical,
+			Flex:    &zero,
+			Spacing: linebot.FlexComponentSpacingTypeSm,
+			Contents: []linebot.FlexComponent{
+				&linebot.ButtonComponent{
+					Height: linebot.FlexButtonHeightTypeSm,
+					Style:  linebot.FlexButtonStyleTypeLink,
+					Action: &linebot.URIAction{
+						Label: "CALL",
+						URI:   "https://linecorp.com",
+					},
+				},
+				&linebot.ButtonComponent{
+					Height: linebot.FlexButtonHeightTypeSm,
+					Style:  linebot.FlexButtonStyleTypeLink,
+					Action: &linebot.URIAction{
+						Label: "WEBSITE",
+						URI:   "https://linecorp.com",
+					},
+				},
+			},
+		},
+	}
+	message := linebot.NewFlexMessage("flex", container)
+	_, err := bot.ReplyMessage(token, message).Do()
+	return err
 }
